@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "monocular-depth"
+version = "0.1.0"
+description = "Metric depth from one camera on KITTI: Depth Pro, Depth Anything V2, ZoeDepth and YOLO26-depth under one evaluation, errors by object class, fine-tuning on a GPU cluster."
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "Kacper Pawlowski" }]
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.26",
+    "opencv-python-headless>=4.9",
+    "pillow>=10",
+    "pyyaml>=6",
+    "requests>=2.31",
+    "matplotlib>=3.8",
+    "torch>=2.3",
+]
+
+[project.optional-dependencies]
+models = ["ultralytics>=8.4", "transformers>=5.0", "scipy>=1.11"]
+train = ["monocular-depth[models]"]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[project.scripts]
+depth-download = "mono_depth.datasets.kitti_eigen:main"
+depth-benchmark = "mono_depth.benchmark:main"
+depth-summary = "mono_depth.summary:main"
+depth-predict = "mono_depth.predict:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "NPY"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

@@ -1,0 +1,54 @@
+# Slurm cluster settings and job definitions, rendered by slurm/generate.py.
+# Put your account in slurm/cluster.local.toml (not committed):  [cluster]  account = "..."
+# Downloads (Eigen test frames, model weights, the KITTI depth training set) run on a login node.
+# Find your Slurm account with:  sacctmgr show assoc format=Account%20,User,QOS | grep $USER
+
+[cluster]
+account = "CHANGE_ME"   # overridden by slurm/cluster.local.toml
+python_module = "Python/3.11.3-GCCcore-12.3.0"   # module spider Python
+venv = "/cluster/work/$USER/venvs/monocular-depth"
+workdir = "/cluster/work/$USER/monocular-depth"   # $DATA = workdir/data, $RUNS = workdir/runs
+mail_user = ""
+
+[cluster.env]
+YOLO_OFFLINE = "1"
+HF_HUB_OFFLINE = "1"
+
+[defaults]
+partition = "GPUQ"
+time = "0-04:00:00"
+cpus = 8
+mem = "32G"
+gpus = 1
+constraint = "gpu32g|gpu40g|gpu80g"   # V100 32 GB, A100, H100 (setup_cluster.sh installs PyTorch for CUDA 12.6)
+
+[jobs.benchmark]
+description = "Zero-shot depth models on the KITTI Eigen test split (652 frames), AbsRel per object class"
+command = "python -m mono_depth.benchmark --root $DATA/kitti_eigen --out $RUNS/benchmark --by-class $ARRAY_ARGS"
+array = [
+    "--models yolo26s-depth yolo26m-depth yolo26x-depth",
+    "--models da2-small da2-large da2-metric-outdoor-small da2-metric-outdoor-large",
+    "--models depth-pro depth-pro-known-focal",
+    "--models da3-mono-large da3-metric-large",
+]
+
+[jobs.finetune-yolo]
+description = "YOLO26s-depth fine-tuned on KITTI (Eigen train minus held-out drives), training images stretched like validation"
+time = "1-00:00:00"
+cpus = 16
+mem = "64G"
+command = "python -m mono_depth.finetune --root $DATA/depth-kitti --model yolo26s-depth.pt --epochs 10 --lr0 0.0001 --project $RUNS --name kitti_yolo26s"
+
+[jobs.eval-finetuned]
+description = "The KITTI-fine-tuned YOLO26s-depth as a metric model on the Eigen test split"
+time = "0-01:00:00"
+command = "python -m mono_depth.benchmark --models $RUNS/kitti_yolo26s/weights/best.pt --root $DATA/kitti_eigen --out $RUNS/finetuned --by-class"
+
+[jobs.summary]
+description = "Markdown table of all evaluations (CPU)"
+partition = "CPUQ"
+gpus = 0
+cpus = 1
+mem = "2G"
+time = "0-00:10:00"
+command = "python -m mono_depth.summary --runs $RUNS/benchmark $RUNS/finetuned --out $RUNS/summary.md"
